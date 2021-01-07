@@ -1,8 +1,7 @@
 package manage
 
 import (
-	//"github.com/fyuan1316/asm-operator/pkg/logging"
-	"github.com/fyuan1316/operatorlib/manage/model"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -10,9 +9,16 @@ import (
 //	logger = logging.RegisterScope("controller.oprlib")
 //)
 
-func NewOperatorManage(client client.Client, opts ...model.Option) *model.OperatorManage {
-	oprOpts := &model.OperatorOptions{}
-	managerSpec := &model.OperatorManage{
+type OperatorManage struct {
+	K8sClient client.Client
+	//CR        Object
+	Options  *OperatorOptions
+	Recorder record.EventRecorder
+}
+
+func NewOperatorManage(client client.Client, opts ...Option) *OperatorManage {
+	oprOpts := &OperatorOptions{}
+	managerSpec := &OperatorManage{
 		K8sClient: client,
 		//CR:        cr,
 		Options: oprOpts,

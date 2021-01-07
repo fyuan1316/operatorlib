@@ -1,4 +1,4 @@
-package model
+package manage
 
 import (
 	"k8s.io/apimachinery/pkg/runtime"

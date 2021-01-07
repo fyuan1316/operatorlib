@@ -1,7 +1,9 @@
-package model
+package manage
 
 import (
 	"context"
+	"github.com/fyuan1316/operatorlib/manage/model"
+
 	//"github.com/fyuan1316/asm-operator/pkg/logging"
 	pkgerrors "github.com/pkg/errors"
 	//"github.com/sirupsen/logrus"
@@ -14,7 +16,7 @@ var (
 //logger = logging.RegisterScope("controller.oprlib")
 )
 
-func (m *OperatorManage) Reconcile(instance CommonOperator, provisionStages, deletionStages [][]ExecuteItem) (ctrl.Result, error) {
+func (m *OperatorManage) Reconcile(instance model.CommonOperator, provisionStages, deletionStages [][]model.ExecuteItem) (ctrl.Result, error) {
 	//logger.SetOutputLevel(logrus.DebugLevel)
 	var (
 		params map[string]interface{}
@@ -23,7 +25,7 @@ func (m *OperatorManage) Reconcile(instance CommonOperator, provisionStages, del
 	if params, err = instance.GetOperatorParams(); err != nil {
 		return ctrl.Result{}, pkgerrors.Wrap(err, "parse spec params error")
 	}
-	oCtx := OperatorContext{
+	oCtx := model.OperatorContext{
 		K8sClient:      m.K8sClient,
 		Recorder:       m.Recorder,
 		Instance:       instance,
@@ -71,7 +73,7 @@ func (m *OperatorManage) Reconcile(instance CommonOperator, provisionStages, del
 
 }
 
-func (m *OperatorManage) DoHealthCheck(stages [][]ExecuteItem, oCtx OperatorContext) error {
+func (m *OperatorManage) DoHealthCheck(stages [][]model.ExecuteItem, oCtx model.OperatorContext) error {
 	//oCtx := OperatorContext{
 	//	K8sClient:      m.K8sClient,
 	//	Recorder:       m.Recorder,
@@ -80,7 +82,7 @@ func (m *OperatorManage) DoHealthCheck(stages [][]ExecuteItem, oCtx OperatorCont
 	var readyCheckNum, readyNum, healthyCheckNum, healthyNum int
 	for _, items := range stages {
 		for _, item := range items {
-			if ref, ok := CanDoHealthCheck(item); ok {
+			if ref, ok := model.CanDoHealthCheck(item); ok {
 				//logger.Debugf("run HealthCheck")
 				readyCheckNum += 1
 				if ref.IsReady(&oCtx) {
@@ -103,11 +105,11 @@ func (m *OperatorManage) DoHealthCheck(stages [][]ExecuteItem, oCtx OperatorCont
 	return nil
 }
 
-func (m *OperatorManage) ProcessStages(stages [][]ExecuteItem, oCtx OperatorContext) error {
+func (m *OperatorManage) ProcessStages(stages [][]model.ExecuteItem, oCtx model.OperatorContext) error {
 
 	for _, items := range stages {
 		for _, item := range items {
-			if ref, ok := CanDoPreCheck(item); ok {
+			if ref, ok := model.CanDoPreCheck(item); ok {
 				//logger.Debugf("run precheck")
 				if err := loopUntil(context.Background(), 5*time.Second, 3, ref.PreCheck, &oCtx); err != nil {
 					return err
@@ -115,7 +117,7 @@ func (m *OperatorManage) ProcessStages(stages [][]ExecuteItem, oCtx OperatorCont
 			}
 		}
 		for _, item := range items {
-			if ref, ok := CanDoPreRun(item); ok {
+			if ref, ok := model.CanDoPreRun(item); ok {
 				//logger.Debugf("run prerun")
 				if err := ref.PreRun(&oCtx); err != nil {
 					return err
@@ -123,16 +125,13 @@ func (m *OperatorManage) ProcessStages(stages [][]ExecuteItem, oCtx OperatorCont
 			}
 		}
 		for _, item := range items {
-			//if ref, ok := CanDoRun(item); ok {
-			//logger.Debugf("execute run")
 			if err := item.Run(&oCtx); err != nil {
 				return err
 			}
-			//}
 		}
 
 		for _, item := range items {
-			if ref, ok := CanDoPostRun(item); ok {
+			if ref, ok := model.CanDoPostRun(item); ok {
 				//logger.Debugf("run postrun")
 				if err := ref.PostRun(&oCtx); err != nil {
 					return err
@@ -140,7 +139,7 @@ func (m *OperatorManage) ProcessStages(stages [][]ExecuteItem, oCtx OperatorCont
 			}
 		}
 		for _, item := range items {
-			if ref, ok := CanDoPostCheck(item); ok {
+			if ref, ok := model.CanDoPostCheck(item); ok {
 				//logger.Debugf("run postcheck")
 				if err := loopUntil(context.Background(), 5*time.Second, 3, ref.PostCheck, &oCtx); err != nil {
 					return err

@@ -7,12 +7,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type OperatorManage struct {
-	K8sClient client.Client
-	//CR        Object
-	Options  *OperatorOptions
-	Recorder record.EventRecorder
-}
+//
+//type OperatorManage struct {
+//	K8sClient client.Client
+//	Options  *manage.OperatorOptions
+//	Recorder record.EventRecorder
+//}
 
 //func (m *OperatorManage) GetEditableCR() runtime.Object {
 //	return m.CR.DeepCopyObject()
@@ -33,7 +33,6 @@ type CommonOperator interface {
 }
 type OperatorContext struct {
 	K8sClient client.Client
-	////CR        Object
 	//Options   *OperatorOptions
 	Recorder       record.EventRecorder
 	Instance       CommonOperator

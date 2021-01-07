@@ -1,7 +1,7 @@
 package shell
 
 import (
-	"github.com/fyuan1316/operatorlib/resource"
+	"github.com/fyuan1316/operatorlib/task"
 	"path/filepath"
 	"strings"
 )
@@ -11,7 +11,7 @@ func (s *ScriptManager) LoadDir(dir string) error {
 		files map[string]string
 		err   error
 	)
-	if files, err = resource.GetFilesInFolder(dir, resource.Asc(), resource.Suffix(".sh")); err != nil {
+	if files, err = task.GetFilesInFolder(dir, task.Asc(), task.Suffix(".sh")); err != nil {
 		return err
 	}
 	if err = s.LoadContents(files); err != nil {

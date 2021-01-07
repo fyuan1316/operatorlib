@@ -1,108 +1,175 @@
 package chart
 
-/*
 import (
 	"fmt"
-	"github.com/fyuan1316/asm-operator/pkg/oprlib/manage/model"
-	resource2 "github.com/fyuan1316/asm-operator/pkg/oprlib/resource"
+	"github.com/fyuan1316/klient"
+	"github.com/fyuan1316/operatorlib/manage/model"
+	"github.com/pkg/errors"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v3/pkg/engine"
+	"path/filepath"
+	"strings"
 )
 
 var _ model.ExecuteItem = ChartTask{}
 
-//var _ model.Chart = ChartTask{}
-
 type ChartTask struct {
-	FileTask
-	////子类override 接口
-	//implementor model.OverrideOperation
-	//
-	////资源mappings hook
-	//ResourceMappings map[metav1.TypeMeta]*K8sResourceMapping
-	//
-	////ResourceOptions  map[string]YamlResource
-	////归属任务的资源集
-	//K8sResource map[string]SyncResource
-	//
-	////任务层面资源是否随operator删除的设定
-	//KeepResourceAfterOperatorDeleted *bool
-	//
-	////任务级别的values数据，一般对应到一个chart的values
-	////TemplateValues map[string]interface{}
-
-	ChartDir string
+	//子类override 接口
+	implementor model.OverrideOperation
+	// task path
+	Dir    string
+	Chart  *chart.Chart
+	values chartutil.Values
+	klient *klient.Client
 }
 
-func (m ChartTask) Reload(values map[string]interface{}) error {
-	fmt.Println("task reload")
+func (c *ChartTask) Override(operation model.OverrideOperation) {
+	c.implementor = operation
+}
+func (c *ChartTask) Init() {
 	var (
-		files map[string]string
-		err   error
+		chart  *chart.Chart
+		client *klient.Client
+		err    error
 	)
-	if files, err = resource2.GetChartResources(m.ChartDir, values); err != nil {
+	if chart, err = loader.LoadDir(c.Dir); err != nil {
+		panic(err)
+	}
+	if client, err = klient.NewE("", ""); err != nil {
+		panic(err)
+	}
+	c.klient = client
+	c.Chart = chart
+
+}
+func (c *ChartTask) apply(userValues map[string]interface{}) error {
+	var err error
+	if err = c.applyCrds(); err != nil {
 		return err
 	}
-	if err = m.LoadResources(files); err != nil {
+	//set values
+	resFiles, err := c.generateFiles(userValues)
+	if err != nil {
 		return err
+	}
+	for _, crd := range resFiles {
+		if err = c.klient.Apply([]byte(crd)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (c *ChartTask) delete(userValues map[string]interface{}) error {
+	var err error
+
+	//set values
+	resFiles, err := c.generateFiles(userValues)
+	if err != nil {
+		return err
+	}
+	for _, crd := range resFiles {
+		if err = c.klient.Delete([]byte(crd)); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (m *ChartTask) Override(operation model.OverrideOperation) {
-	m.implementor = operation
-}
-func (m ChartTask) Name() string {
-	panic("implement me")
-}
-func (m ChartTask) GetImplementor() model.OverrideOperation {
-	return m.implementor
+func (c *ChartTask) generateFiles(userValues map[string]interface{}) (Files, error) {
+	var err error
+	c.values = c.Chart.Values
+	// merge values if any
+	if len(userValues) > 0 {
+		fmt.Println("override values") //TODO fy
+		if c.values, err = chartutil.CoalesceValues(c.Chart, userValues); err != nil {
+			return nil, err
+		}
+	}
+	//render files
+	isUpgrade := false
+	options := chartutil.ReleaseOptions{
+		Name:      "asm-operator-test",
+		Namespace: "default",
+		Revision:  1,
+		IsInstall: !isUpgrade,
+		IsUpgrade: isUpgrade,
+	}
+	valuesToRender, err := chartutil.ToRenderValues(c.Chart, c.values, options, nil)
+	if err != nil {
+		return nil, err
+	}
+	var files Files
+	if files, err = engine.Render(c.Chart, valuesToRender); err != nil {
+		return nil, err
+	}
+	// filter files
+	resFiles := files.filterManifestExtension(func(filename string) bool {
+		ext := filepath.Ext(filename)
+		return strings.EqualFold(ext, ".yaml") || strings.EqualFold(ext, ".yml") || strings.EqualFold(ext, ".json")
+	}).splitOneResourcePerFile()
+	return resFiles, nil
 }
 
-//type SyncResource struct {
-//	FileInfo
-//	model.Object
-//	Sync   SyncFunction
-//	Delete SyncFunction
-//}
-//
-//func NewSyncResource(resMapping *K8sResourceMapping) *SyncResource {
-//	res := &SyncResource{FileInfo: FileInfo{}}
-//	res.Object = resMapping.ObjectGenerator()
-//	res.Sync = resMapping.Sync
-//	res.Delete = resMapping.Deletion
-//	return res
-//}
-//
-//func (m *SyncResource) SetObject(o model.Object) {
-//	m.Object = o
-//}
-//func (m *SyncResource) SetOwnerRef() {
-//	t := true
-//	m.ChargeByOperator = &t
-//}
-//func (m *SyncResource) IsChargedByOwnerRef() *bool {
-//	return m.ChargeByOperator
-//}
-//
-//func (m *ChartTask) Sync(ctx *model.OperatorContext) error {
-//	for _, res := range m.K8sResource {
-//		if err := res.Sync(ctx.K8sClient, res.Object); err != nil {
-//			return err
-//		}
-//	}
-//	return nil
-//}
-//
-//func (m *ChartTask) Delete(ctx *model.OperatorContext) error {
-//	for _, res := range m.K8sResource {
-//		//资源参数优先
-//		if res.IsChargedByOwnerRef() != nil && *res.IsChargedByOwnerRef() ||
-//			m.KeepResourceAfterOperatorDeleted != nil && !*m.KeepResourceAfterOperatorDeleted {
-//			if err := res.Delete(ctx.K8sClient, res.Object); err != nil {
-//				return err
-//			}
-//		}
-//	}
-//	return nil
-//}
-//
-*/
+type Files map[string]string
+
+func (files Files) filterManifestExtension(fn func(filename string) bool) Files {
+	m := make(map[string]string, 0)
+	for k, v := range files {
+		if fn(k) {
+			m[k] = v
+		}
+	}
+	return m
+}
+func (files Files) splitOneResourcePerFile() Files {
+	resSep := "---"
+	m := make(map[string]string, 0)
+	for filePath, content := range files {
+		if strings.Contains(content, resSep) {
+			resInFile := strings.Split(content, resSep)
+			var key string
+			for i := range resInFile {
+				key = fmt.Sprintf("%s_%d", filePath, i)
+				m[key] = resInFile[i]
+			}
+		} else {
+			m[filePath] = content
+		}
+	}
+	return m
+}
+
+func (c *ChartTask) applyCrds() error {
+	if len(c.Chart.CRDObjects()) > 0 {
+		for _, crd := range c.Chart.CRDObjects() {
+			if err := c.klient.Apply(crd.File.Data); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (c ChartTask) Name() string {
+	panic("implement me")
+}
+func (c ChartTask) GetImplementor() model.OverrideOperation {
+	return c.implementor
+}
+func (c ChartTask) Run(ctx *model.OperatorContext) error {
+	if c.GetImplementor().GetOperation() == model.Operations.Provision {
+		return c.Apply(ctx)
+	} else if c.GetImplementor().GetOperation() == model.Operations.Deletion {
+		return c.Delete(ctx)
+	} else {
+		return errors.New("UnSupport type of ResourceTask")
+	}
+}
+func (c ChartTask) Apply(ctx *model.OperatorContext) error {
+	return c.apply(ctx.OperatorParams)
+}
+func (c ChartTask) Delete(ctx *model.OperatorContext) error {
+	return c.delete(ctx.OperatorParams)
+}
