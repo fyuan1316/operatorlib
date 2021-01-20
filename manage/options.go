@@ -1,12 +1,12 @@
 package manage
 
 import (
+	"github.com/fyuan1316/operatorlib/manage/model"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type StatusUpdaterFunc func(obj runtime.Object, client client.Client) func(isReady, isHealthy bool) error
+type StatusUpdaterFunc func(*model.OperatorContext, *model.StatusContext) error
 type Option func(spec *OperatorOptions)
 type OperatorOptions struct {
 	Scheme        *runtime.Scheme

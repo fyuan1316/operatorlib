@@ -21,7 +21,6 @@ type HealthCheck interface {
 	IsHealthy(*OperatorContext) bool
 }
 
-//
 func CanDoPreCheck(inf interface{}) (PreCheck, bool) {
 	if b, ok := inf.(PreCheck); ok {
 		return b, true
@@ -53,24 +52,6 @@ func CanDoHealthCheck(inf interface{}) (HealthCheck, bool) {
 	return nil, false
 }
 
-//
-//func CanDoRun(inf interface{}) (Runnable, bool) {
-//	if b, ok := inf.(Runnable); ok {
-//		return b, true
-//	}
-//	return nil, false
-//}
-
-//func IsChartTask(inf interface{}) (Chart, bool) {
-//	if b, ok := inf.(Chart); ok {
-//		return b, true
-//	}
-//	return nil, false
-//}
-
-//type Chart interface {
-//	Reload(map[string]interface{}) error
-//}
 type Item interface {
 	Name() string
 }

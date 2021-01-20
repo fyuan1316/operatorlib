@@ -2,7 +2,11 @@ package manage
 
 import (
 	"context"
+	"github.com/fyuan1316/operatorlib/api"
+	"github.com/fyuan1316/operatorlib/event"
 	"github.com/fyuan1316/operatorlib/manage/model"
+	"github.com/fyuan1316/operatorlib/task/shell"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	//"github.com/fyuan1316/asm-operator/pkg/logging"
 	pkgerrors "github.com/pkg/errors"
@@ -16,6 +20,8 @@ var (
 //logger = logging.RegisterScope("controller.oprlib")
 )
 
+const ()
+
 func (m *OperatorManage) Reconcile(instance model.CommonOperator, provisionStages, deletionStages [][]model.ExecuteItem) (ctrl.Result, error) {
 	//logger.SetOutputLevel(logrus.DebugLevel)
 	var (
@@ -23,12 +29,14 @@ func (m *OperatorManage) Reconcile(instance model.CommonOperator, provisionStage
 		err    error
 	)
 	if params, err = instance.GetOperatorParams(); err != nil {
+		m.Recorder.Event(instance, event.WarningEvent, ParseParamsError, err.Error())
 		return ctrl.Result{}, pkgerrors.Wrap(err, "parse spec params error")
 	}
 	oCtx := model.OperatorContext{
-		K8sClient:      m.K8sClient,
-		Recorder:       m.Recorder,
-		Instance:       instance,
+		K8sClient: m.K8sClient,
+		Recorder:  m.Recorder,
+		Instance:  instance,
+
 		OperatorParams: params,
 	}
 
@@ -37,7 +45,7 @@ func (m *OperatorManage) Reconcile(instance model.CommonOperator, provisionStage
 		if !ContainsString(instance.GetFinalizers(), m.Options.FinalizerID) {
 			finalizers := append(instance.GetFinalizers(), m.Options.FinalizerID)
 			instance.SetFinalizers(finalizers)
-			if err := m.K8sClient.Update(context.Background(), instance.DeepCopyObject()); err != nil {
+			if err = m.K8sClient.Update(context.Background(), instance.DeepCopyObject()); err != nil {
 				return ctrl.Result{}, pkgerrors.Wrap(err, "could not add finalizer to config")
 			}
 			return ctrl.Result{
@@ -47,14 +55,20 @@ func (m *OperatorManage) Reconcile(instance model.CommonOperator, provisionStage
 	} else if !instance.GetDeletionTimestamp().IsZero() {
 		//logger.Debug("delete cr")
 		if len(deletionStages) > 0 {
-			if err := m.ProcessStages(deletionStages, oCtx); err != nil {
-				return ctrl.Result{}, err
+			//标识当前为部署过程，相应信息记录在status.deleteConditions
+			oCtx.DoDeletion()
+			if sc := m.ProcessStages(deletionStages, oCtx); sc.Err() != nil {
+				// update partial status
+				if updErr := m.Options.StatusUpdater(&oCtx, sc); updErr != nil {
+					return ctrl.Result{}, updErr
+				}
+				return ctrl.Result{}, sc.Err()
 			}
 		}
+		//deletion success
 		f := RemoveString(instance.GetFinalizers(), m.Options.FinalizerID)
 		instance.SetFinalizers(f)
-		//logger.Debugf("cr Finalizers=%v", instance.GetFinalizers())
-		if err := m.K8sClient.Update(context.Background(), instance.DeepCopyObject()); err != nil {
+		if err = m.K8sClient.Update(context.Background(), instance.DeepCopyObject()); err != nil {
 			return reconcile.Result{}, pkgerrors.Wrap(err, "could not remove finalizer from config")
 		}
 		return ctrl.Result{}, nil
@@ -63,27 +77,42 @@ func (m *OperatorManage) Reconcile(instance model.CommonOperator, provisionStage
 		return ctrl.Result{}, nil
 	}
 	//sync
-	if err := m.ProcessStages(provisionStages, oCtx); err != nil {
+	//标识当前为部署过程，相应信息记录在status.installConditions
+	oCtx.DoProvision()
+	syncSc := m.ProcessStages(provisionStages, oCtx)
+	if syncSc.Err() != nil {
+		// update partial status
+		if updErr := m.Options.StatusUpdater(&oCtx, syncSc); updErr != nil {
+			return ctrl.Result{}, updErr
+		}
+		return ctrl.Result{}, syncSc.Err()
+	}
+
+	isReady, isHealthy, err := m.DoHealthCheck(provisionStages, oCtx)
+	if err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := m.DoHealthCheck(provisionStages, oCtx); err != nil {
+	// append healthy check state
+	syncSc.OperatorStatus.SetState(isReady, isHealthy)
+	// update total status
+	if err = m.Options.StatusUpdater(&oCtx, syncSc); err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
-
 }
 
-func (m *OperatorManage) DoHealthCheck(stages [][]model.ExecuteItem, oCtx model.OperatorContext) error {
-	//oCtx := OperatorContext{
-	//	K8sClient:      m.K8sClient,
-	//	Recorder:       m.Recorder,
-	//	OperatorParams: instance.GetOperatorParams(),
-	//}
+//func (m *OperatorManage) updateStatus(oCtx *model.OperatorContext, syncSc *model.StatusContext) error {
+//	if updErr := m.Options.StatusUpdater(oCtx, syncSc); updErr != nil {
+//		return updErr
+//	}
+//	return nil
+//}
+
+func (m *OperatorManage) DoHealthCheck(stages [][]model.ExecuteItem, oCtx model.OperatorContext) (bool, bool, error) {
 	var readyCheckNum, readyNum, healthyCheckNum, healthyNum int
 	for _, items := range stages {
 		for _, item := range items {
 			if ref, ok := model.CanDoHealthCheck(item); ok {
-				//logger.Debugf("run HealthCheck")
 				readyCheckNum += 1
 				if ref.IsReady(&oCtx) {
 					readyNum += 1
@@ -95,59 +124,102 @@ func (m *OperatorManage) DoHealthCheck(stages [][]model.ExecuteItem, oCtx model.
 			}
 		}
 	}
-	// if some task needs report its states, we update operator cr's status.state
-	if readyCheckNum > 0 {
-		if err := m.Options.StatusUpdater(oCtx.Instance.DeepCopyObject(), m.K8sClient)(readyCheckNum == readyNum, healthyCheckNum == healthyNum); err != nil {
-			return err
-		}
-		return nil
-	}
-	return nil
+	return readyCheckNum == readyNum, healthyCheckNum == healthyNum, nil
 }
 
-func (m *OperatorManage) ProcessStages(stages [][]model.ExecuteItem, oCtx model.OperatorContext) error {
-
+func (m *OperatorManage) ProcessStages(stages [][]model.ExecuteItem, oCtx model.OperatorContext) *model.StatusContext {
+	sc := model.NewStatusContext(oCtx)
 	for _, items := range stages {
 		for _, item := range items {
 			if ref, ok := model.CanDoPreCheck(item); ok {
-				//logger.Debugf("run precheck")
-				if err := loopUntil(context.Background(), 5*time.Second, 3, ref.PreCheck, &oCtx); err != nil {
-					return err
+				err := loopUntil(context.Background(), defualtLoopSetting.Interval*time.Second, defualtLoopSetting.MaxRetries, ref.PreCheck, &oCtx)
+				if pkgerrors.Is(err, shell.InternalIgnoreShellScriptError) {
+					continue
 				}
+				cond := sc.StageCondition(oCtx.OperationType(), api.OperationStages.PreCheck, item.Name())
+				cond.SetLastTransitionTime(metav1.Now())
+				if err != nil {
+					cond.SetFailed().
+						SetReason("PreCheck failed").
+						SetMessage(err.Error())
+					sc.SetError(err)
+					return sc
+				}
+
 			}
 		}
 		for _, item := range items {
 			if ref, ok := model.CanDoPreRun(item); ok {
 				//logger.Debugf("run prerun")
-				if err := ref.PreRun(&oCtx); err != nil {
-					return err
+				err := ref.PreRun(&oCtx)
+				if pkgerrors.Is(err, shell.InternalIgnoreShellScriptError) {
+					continue
+				}
+				cond := sc.StageCondition(oCtx.OperationType(), api.OperationStages.PreRun, item.Name())
+				cond.SetLastTransitionTime(metav1.Now())
+				if err != nil {
+					cond.SetFailed().
+						SetReason("PreRun failed").
+						SetMessage(err.Error())
+					sc.SetError(err)
+					return sc
 				}
 			}
 		}
 		for _, item := range items {
-			if err := item.Run(&oCtx); err != nil {
-				return err
+			err := item.Run(&oCtx)
+			if pkgerrors.Is(err, shell.InternalIgnoreShellScriptError) {
+				continue
+			}
+			cond := sc.StageCondition(oCtx.OperationType(), api.OperationStages.Run, item.Name())
+			cond.SetLastTransitionTime(metav1.Now())
+			if err != nil {
+				cond.SetFailed().
+					SetReason("Run failed").
+					SetMessage(err.Error())
+				sc.SetError(err)
+				return sc
 			}
 		}
 
 		for _, item := range items {
 			if ref, ok := model.CanDoPostRun(item); ok {
 				//logger.Debugf("run postrun")
-				if err := ref.PostRun(&oCtx); err != nil {
-					return err
+				err := ref.PostRun(&oCtx)
+				if pkgerrors.Is(err, shell.InternalIgnoreShellScriptError) {
+					continue
+				}
+				cond := sc.StageCondition(oCtx.OperationType(), api.OperationStages.PostRun, item.Name())
+				cond.SetLastTransitionTime(metav1.Now())
+				if err != nil {
+					cond.SetFailed().
+						SetReason("PostRun failed").
+						SetMessage(err.Error())
+					sc.SetError(err)
+					return sc
 				}
 			}
 		}
 		for _, item := range items {
 			if ref, ok := model.CanDoPostCheck(item); ok {
 				//logger.Debugf("run postcheck")
-				if err := loopUntil(context.Background(), 5*time.Second, 3, ref.PostCheck, &oCtx); err != nil {
-					return err
+				err := loopUntil(context.Background(), defualtLoopSetting.Interval*time.Second, defualtLoopSetting.MaxRetries, ref.PostCheck, &oCtx)
+				if pkgerrors.Is(err, shell.InternalIgnoreShellScriptError) {
+					continue
+				}
+				cond := sc.StageCondition(oCtx.OperationType(), api.OperationStages.PostCheck, item.Name())
+				cond.SetLastTransitionTime(metav1.Now())
+				if err != nil {
+					cond.SetFailed().
+						SetReason("PostCheck failed").
+						SetMessage(err.Error())
+					sc.SetError(err)
+					return sc
 				}
 			}
 		}
 	}
-	return nil
+	return sc
 }
 
 func ContainsString(slice []string, s string) bool {

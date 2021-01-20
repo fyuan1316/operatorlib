@@ -20,8 +20,7 @@ func NewOperatorManage(client client.Client, opts ...Option) *OperatorManage {
 	oprOpts := &OperatorOptions{}
 	managerSpec := &OperatorManage{
 		K8sClient: client,
-		//CR:        cr,
-		Options: oprOpts,
+		Options:   oprOpts,
 	}
 	for _, opt := range opts {
 		opt(oprOpts)

@@ -153,7 +153,7 @@ func (c *ChartTask) applyCrds() error {
 }
 
 func (c ChartTask) Name() string {
-	panic("implement me")
+	return "DefaultChartTask"
 }
 func (c ChartTask) GetImplementor() model.OverrideOperation {
 	return c.implementor

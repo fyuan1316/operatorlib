@@ -49,7 +49,7 @@ var _ model.PreRun = ScriptManager{}
 var _ model.PostRun = ScriptManager{}
 
 func (s ScriptManager) Name() string {
-	panic("implement me")
+	return "DefaultShellImpl"
 }
 func (s ScriptManager) runScripts(filePaths []string) error {
 	for _, shFilePath := range filePaths {
@@ -61,7 +61,7 @@ func (s ScriptManager) runScripts(filePaths []string) error {
 }
 func (s ScriptManager) PreCheck(oCtx *model.OperatorContext) (bool, error) {
 	if len(s.preCheck) == 0 {
-		return true, nil
+		return true, InternalIgnoreShellScriptError
 	}
 	if err := s.runScripts(s.preCheck); err != nil {
 		return false, err
@@ -70,7 +70,7 @@ func (s ScriptManager) PreCheck(oCtx *model.OperatorContext) (bool, error) {
 }
 func (s ScriptManager) PostCheck(oCtx *model.OperatorContext) (bool, error) {
 	if len(s.postCheck) == 0 {
-		return true, nil
+		return true, InternalIgnoreShellScriptError
 	}
 	if err := s.runScripts(s.postCheck); err != nil {
 		return false, err
@@ -80,19 +80,19 @@ func (s ScriptManager) PostCheck(oCtx *model.OperatorContext) (bool, error) {
 
 func (s ScriptManager) Run(oCtx *model.OperatorContext) error {
 	if len(s.run) == 0 {
-		return nil
+		return InternalIgnoreShellScriptError
 	}
 	return s.runScripts(s.run)
 }
 func (s ScriptManager) PreRun(oCtx *model.OperatorContext) error {
 	if len(s.preRun) == 0 {
-		return nil
+		return InternalIgnoreShellScriptError
 	}
 	return s.runScripts(s.preRun)
 }
 func (s ScriptManager) PostRun(oCtx *model.OperatorContext) error {
 	if len(s.postRun) == 0 {
-		return nil
+		return InternalIgnoreShellScriptError
 	}
 	return s.runScripts(s.postRun)
 }
