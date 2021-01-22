@@ -2,6 +2,7 @@ package model
 
 import (
 	"github.com/fyuan1316/operatorlib/api"
+	pkgerrors "github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -17,13 +18,29 @@ type CommonOperator interface {
 	runtime.Object
 	metav1.Object
 	GetOperatorParams() (map[string]interface{}, error)
+	GetInstalledNamespace() string
 }
 type OperatorContext struct {
-	K8sClient      client.Client
-	Recorder       record.EventRecorder
-	Instance       CommonOperator
-	operationType  OperationType
-	OperatorParams map[string]interface{}
+	K8sClient          client.Client
+	Recorder           record.EventRecorder
+	Instance           CommonOperator
+	operationType      OperationType
+	OperatorParams     map[string]interface{}
+	InstalledNamespace string
+}
+
+func NewOperatorContext(k8sClient client.Client, recorder record.EventRecorder, instance CommonOperator) (*OperatorContext, error) {
+	params, err := instance.GetOperatorParams()
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, "parse spec params error")
+	}
+	oCtx := OperatorContext{}
+	oCtx.K8sClient = k8sClient
+	oCtx.Recorder = recorder
+	oCtx.Instance = instance
+	oCtx.InstalledNamespace = instance.GetInstalledNamespace()
+	oCtx.OperatorParams = params
+	return &oCtx, nil
 }
 
 func (oc *OperatorContext) DoProvision() {

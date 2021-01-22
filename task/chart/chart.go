@@ -44,13 +44,13 @@ func (c *ChartTask) Init() {
 	c.Chart = chart
 
 }
-func (c *ChartTask) apply(userValues map[string]interface{}) error {
+func (c *ChartTask) apply(ctx *model.OperatorContext) error {
 	var err error
 	if err = c.applyCrds(); err != nil {
 		return err
 	}
 	//set values
-	resFiles, err := c.generateFiles(userValues)
+	resFiles, err := c.generateOverlayFiles(ctx)
 	if err != nil {
 		return err
 	}
@@ -61,11 +61,11 @@ func (c *ChartTask) apply(userValues map[string]interface{}) error {
 	}
 	return nil
 }
-func (c *ChartTask) delete(userValues map[string]interface{}) error {
+func (c *ChartTask) delete(installedNamespace string, userValues map[string]interface{}) error {
 	var err error
 
 	//set values
-	resFiles, err := c.generateFiles(userValues)
+	resFiles, err := c.generateFiles(installedNamespace, userValues)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (c *ChartTask) delete(userValues map[string]interface{}) error {
 	return nil
 }
 
-func (c *ChartTask) generateFiles(userValues map[string]interface{}) (Files, error) {
+func (c *ChartTask) generateFiles(installedNamespace string, userValues map[string]interface{}) (Files, error) {
 	var err error
 	c.values = c.Chart.Values
 	// merge values if any
@@ -88,13 +88,9 @@ func (c *ChartTask) generateFiles(userValues map[string]interface{}) (Files, err
 		}
 	}
 	//render files
-	isUpgrade := false
 	options := chartutil.ReleaseOptions{
-		Name:      "asm-operator-test",
-		Namespace: "default",
-		Revision:  1,
-		IsInstall: !isUpgrade,
-		IsUpgrade: isUpgrade,
+		Name:      c.GetImplementor().GetName(),
+		Namespace: installedNamespace,
 	}
 	valuesToRender, err := chartutil.ToRenderValues(c.Chart, c.values, options, nil)
 	if err != nil {
@@ -153,7 +149,7 @@ func (c *ChartTask) applyCrds() error {
 }
 
 func (c ChartTask) Name() string {
-	return "DefaultChartTask"
+	return c.implementor.GetName()
 }
 func (c ChartTask) GetImplementor() model.OverrideOperation {
 	return c.implementor
@@ -168,8 +164,9 @@ func (c ChartTask) Run(ctx *model.OperatorContext) error {
 	}
 }
 func (c ChartTask) Apply(ctx *model.OperatorContext) error {
-	return c.apply(ctx.OperatorParams)
+
+	return c.apply(ctx)
 }
 func (c ChartTask) Delete(ctx *model.OperatorContext) error {
-	return c.delete(ctx.OperatorParams)
+	return c.delete(ctx.InstalledNamespace, ctx.OperatorParams)
 }

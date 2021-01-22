@@ -4,6 +4,7 @@ go 1.15
 
 require (
 	github.com/fyuan1316/klient v0.0.0-20210106101119-962edf8f6e33
+	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.2.1 // indirect
 	github.com/go-logr/zapr v0.2.0 // indirect
 	github.com/go-openapi/spec v0.19.7 // indirect
@@ -13,6 +14,7 @@ require (
 	github.com/google/uuid v1.1.2 // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/kr/pretty v0.2.1 // indirect
+	github.com/kylelemons/godebug v1.1.0
 	github.com/mailru/easyjson v0.7.1 // indirect
 	github.com/onsi/ginkgo v1.13.0 // indirect
 	github.com/onsi/gomega v1.10.2 // indirect

@@ -20,6 +20,9 @@ func (in OperatorSpec) GetOperatorParams() (map[string]interface{}, error) {
 
 	return m, nil
 }
+func (in OperatorSpec) GetInstalledNamespace() string {
+	return in.Namespace
+}
 
 type OperatorState string
 
@@ -46,8 +49,8 @@ func (in *OperatorStatus) DeepCopyInto(out *OperatorStatus) {
 	if len(in.InstallConditions) > 0 {
 		m := make(map[OperationStage]TaskCondition, len(in.InstallConditions))
 		for k, v := range in.InstallConditions {
-			length := len(v)
-			slice := make(TaskCondition, length)
+			//length := len(v)
+			slice := make(TaskCondition, 0)
 			for _, vv := range v {
 				slice = append(slice, vv)
 			}

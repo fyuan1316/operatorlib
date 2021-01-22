@@ -68,6 +68,7 @@ var Operations = struct {
 
 // 子类需要实现的接口集
 type OverrideOperation interface {
+	GetName() string
 	GetOperation() OperationType
 	Override(OverrideOperation)
 }
