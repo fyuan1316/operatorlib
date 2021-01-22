@@ -26,7 +26,7 @@ func (c *ChartTask) generateOverlayFiles(ctx *model.OperatorContext) (Files, err
 			return nil, err
 		}
 		labeledFiles := make(map[string]string)
-		for _, obj := range k8sObjects {
+		for i, obj := range k8sObjects {
 			for k, v := range labels {
 				err := SetLabel(obj.UnstructuredObject(), k, v)
 				if err != nil {
@@ -37,7 +37,7 @@ func (c *ChartTask) generateOverlayFiles(ctx *model.OperatorContext) (Files, err
 			if err != nil {
 				return nil, err
 			}
-			labeledFiles[obj.Name] = string(bytes)
+			labeledFiles[string(i)] = string(bytes)
 		}
 		return labeledFiles, nil
 	}
