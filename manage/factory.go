@@ -14,6 +14,7 @@ type OperatorManage struct {
 	//CR        Object
 	Options  *OperatorOptions
 	Recorder record.EventRecorder
+
 }
 
 func NewOperatorManage(client client.Client, opts ...Option) *OperatorManage {

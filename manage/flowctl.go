@@ -8,6 +8,7 @@ import (
 	"github.com/fyuan1316/operatorlib/task/shell"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"sigs.k8s.io/yaml"
 
 	//"github.com/fyuan1316/asm-operator/pkg/logging"
 	pkgerrors "github.com/pkg/errors"
@@ -18,16 +19,47 @@ import (
 )
 
 var (
+//logger = logging.RegisterScope("controller.oprlib")
+)
+
+var (
 	//logger = logging.RegisterScope("controller.oprlib")
 	DefaultBackoff = wait.Backoff{Duration: time.Millisecond * 10, Factor: 2, Steps: 3}
 )
+
+type partialObject struct {
+	Spec partialItem `json:"spec"`
+}
+type partialItem struct {
+	Cluster   string                 `json:"cluster,omitempty"`
+	Namespace string                 `json:"namespace,omitempty"`
+	Parameter map[string]interface{} `json:"parameters,omitempty"`
+}
 
 func (m *OperatorManage) Reconcile(instance model.CommonOperator, provisionStages, deletionStages [][]model.ExecuteItem) (ctrl.Result, error) {
 	var (
 		oCtx *model.OperatorContext
 		err  error
 	)
-	if oCtx, err = model.NewOperatorContext(m.K8sClient, m.Recorder, instance); err != nil {
+	bytes, err := yaml.Marshal(instance)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	po := &partialObject{}
+	err = yaml.Unmarshal([]byte(bytes), po)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	installNs := po.Spec.Namespace
+	if installNs == "" {
+		installNs = m.Options.DefaultInstallNamespace
+	}
+	release := model.ChartRelease{
+		ReleaseName: model.GetReleaseName(po.Spec.Cluster, m.Options.ChartName),
+		Namespace:   installNs,
+		Values:      po.Spec.Parameter,
+	}
+	if oCtx, err = model.NewOperatorContext(m.K8sClient, m.Recorder, instance, release); err != nil {
 		m.Recorder.Event(instance, event.WarningEvent, ParseParamsError, err.Error())
 		return ctrl.Result{}, pkgerrors.WithStack(err)
 	}

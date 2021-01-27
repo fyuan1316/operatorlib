@@ -15,7 +15,7 @@ func (c *ChartTask) generateOverlayFiles(ctx *model.OperatorContext) (Files, err
 	if err != nil {
 		return nil, err
 	}
-	namedFiles, err := c.generateFiles(ctx.InstalledNamespace, ctx.OperatorParams)
+	namedFiles, err := c.generateFiles(&ctx.ChartRelease)
 	if err == nil && len(labels) > 0 {
 		var ymlSlice []string
 		for _, yml := range namedFiles {

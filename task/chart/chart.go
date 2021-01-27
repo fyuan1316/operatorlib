@@ -61,11 +61,11 @@ func (c *ChartTask) apply(ctx *model.OperatorContext) error {
 	}
 	return nil
 }
-func (c *ChartTask) delete(installedNamespace string, userValues map[string]interface{}) error {
+func (c *ChartTask) delete(ctx *model.OperatorContext) error {
 	var err error
 
 	//set values
-	resFiles, err := c.generateFiles(installedNamespace, userValues)
+	resFiles, err := c.generateFiles(&ctx.ChartRelease)
 	if err != nil {
 		return err
 	}
@@ -77,20 +77,20 @@ func (c *ChartTask) delete(installedNamespace string, userValues map[string]inte
 	return nil
 }
 
-func (c *ChartTask) generateFiles(installedNamespace string, userValues map[string]interface{}) (Files, error) {
+func (c *ChartTask) generateFiles(release *model.ChartRelease) (Files, error) {
 	var err error
 	c.values = c.Chart.Values
 	// merge values if any
-	if len(userValues) > 0 {
+	if len(release.Values) > 0 {
 		fmt.Println("override values") //TODO fy
-		if c.values, err = chartutil.CoalesceValues(c.Chart, userValues); err != nil {
+		if c.values, err = chartutil.CoalesceValues(c.Chart, release.Values); err != nil {
 			return nil, err
 		}
 	}
 	//render files
 	options := chartutil.ReleaseOptions{
-		Name:      c.GetImplementor().GetName(),
-		Namespace: installedNamespace,
+		Name:      release.ReleaseName, //c.GetImplementor().GetName()
+		Namespace: release.Namespace,
 	}
 	valuesToRender, err := chartutil.ToRenderValues(c.Chart, c.values, options, nil)
 	if err != nil {
@@ -168,5 +168,5 @@ func (c ChartTask) Apply(ctx *model.OperatorContext) error {
 	return c.apply(ctx)
 }
 func (c ChartTask) Delete(ctx *model.OperatorContext) error {
-	return c.delete(ctx.InstalledNamespace, ctx.OperatorParams)
+	return c.delete(ctx)
 }

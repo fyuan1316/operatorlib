@@ -2,26 +2,15 @@ package api
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/yaml"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// +k8s:deepcopy-gen=false
+// +k8s:deepcopy-gen=true
 
 type OperatorSpec struct {
-	Namespace  string `json:"namespace,omitempty"`
-	Parameters string `json:"parameters,omitempty"`
-}
-
-func (in OperatorSpec) GetOperatorParams() (map[string]interface{}, error) {
-	var m map[string]interface{}
-	if err := yaml.Unmarshal([]byte(in.Parameters), &m); err != nil {
-		return nil, err
-	}
-
-	return m, nil
-}
-func (in OperatorSpec) GetInstalledNamespace() string {
-	return in.Namespace
+	Cluster    string                          `json:"cluster"`
+	Namespace  string                          `json:"namespace,omitempty"`
+	Parameters map[string]runtime.RawExtension `json:"parameters,omitempty"`
 }
 
 type OperatorState string

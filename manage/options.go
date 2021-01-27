@@ -13,6 +13,9 @@ type OperatorOptions struct {
 	FinalizerID   string
 	StatusUpdater StatusUpdaterFunc
 	Recorder      record.EventRecorder
+	//兼容captain安装信息
+	DefaultInstallNamespace string
+	ChartName               string
 }
 
 func SetFinalizer(id string) Option {
@@ -33,5 +36,16 @@ func SetStatusUpdater(updater StatusUpdaterFunc) Option {
 func SetRecorder(recorder record.EventRecorder) Option {
 	return func(spec *OperatorOptions) {
 		spec.Recorder = recorder
+	}
+}
+
+func SetDefaultInstallNamespace(ns string) Option {
+	return func(spec *OperatorOptions) {
+		spec.DefaultInstallNamespace = ns
+	}
+}
+func SetChartName(chart string) Option {
+	return func(spec *OperatorOptions) {
+		spec.ChartName = chart
 	}
 }
