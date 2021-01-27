@@ -7,6 +7,7 @@ import (
 	"github.com/fyuan1316/operatorlib/manage/model"
 	"github.com/fyuan1316/operatorlib/task/shell"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	//"github.com/fyuan1316/asm-operator/pkg/logging"
 	pkgerrors "github.com/pkg/errors"
@@ -17,29 +18,11 @@ import (
 )
 
 var (
-//logger = logging.RegisterScope("controller.oprlib")
+	//logger = logging.RegisterScope("controller.oprlib")
+	DefaultBackoff = wait.Backoff{Duration: time.Millisecond * 10, Factor: 2, Steps: 3}
 )
 
-const ()
-
 func (m *OperatorManage) Reconcile(instance model.CommonOperator, provisionStages, deletionStages [][]model.ExecuteItem) (ctrl.Result, error) {
-	//logger.SetOutputLevel(logrus.DebugLevel)
-	//var (
-	//	params map[string]interface{}
-	//	err    error
-	//)
-	//if params, err = instance.GetOperatorParams(); err != nil {
-	//	m.Recorder.Event(instance, event.WarningEvent, ParseParamsError, err.Error())
-	//	return ctrl.Result{}, pkgerrors.Wrap(err, "parse spec params error")
-	//}
-	//oCtx := model.OperatorContext{
-	//	K8sClient:          m.K8sClient,
-	//	Recorder:           m.Recorder,
-	//	Instance:           instance,
-	//	OperatorParams:     params,
-	//	InstalledNamespace: instance.GetInstalledNamespace(),
-	//}
-
 	var (
 		oCtx *model.OperatorContext
 		err  error
