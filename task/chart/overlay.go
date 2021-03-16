@@ -84,7 +84,7 @@ func getCoreOwnerLabels(ctx *model.OperatorContext) (map[string]string, error) {
 
 	labels[getOwningResourceName(labelKeyPrefix)] = crName
 	labels[getOwningResourceNamespaceKey(labelKeyPrefix)] = crNamespace
-
+	labels[model.ChartReleaseRevisionKey] = ctx.ChartRelease.Revision
 	return labels, nil
 }
 

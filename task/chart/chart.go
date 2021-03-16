@@ -82,7 +82,6 @@ func (c *ChartTask) generateFiles(release *model.ChartRelease) (Files, error) {
 	c.values = c.Chart.Values
 	// merge values if any
 	if len(release.Values) > 0 {
-		fmt.Println("override values") //TODO fy
 		if c.values, err = chartutil.CoalesceValues(c.Chart, release.Values); err != nil {
 			return nil, err
 		}

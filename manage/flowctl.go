@@ -59,6 +59,12 @@ func (m *OperatorManage) Reconcile(instance model.CommonOperator, provisionStage
 		Namespace:   installNs,
 		Values:      po.Spec.Parameter,
 	}
+	labels := instance.GetLabels()
+	if len(labels) > 0 {
+		if v, ok := labels[model.ChartReleaseRevisionKey]; ok {
+			release.Revision = v
+		}
+	}
 	if oCtx, err = model.NewOperatorContext(m.K8sClient, m.Recorder, instance, release); err != nil {
 		m.Recorder.Event(instance, event.WarningEvent, ParseParamsError, err.Error())
 		return ctrl.Result{}, pkgerrors.WithStack(err)

@@ -125,3 +125,5 @@ func NewDefaultCondition(name string) *api.Condition {
 	c.Status = api.ConditionState.Succeed
 	return c
 }
+
+var ChartReleaseRevisionKey = "asm.revision"
