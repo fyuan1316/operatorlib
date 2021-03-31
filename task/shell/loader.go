@@ -31,9 +31,6 @@ func (s *ScriptManager) LoadContents(files map[string]string) error {
 }
 
 func (s *ScriptManager) Load(filePath string) error {
-	if err := s.ensureExecutable(filePath); err != nil {
-		return err
-	}
 	lowercaseFilePath := strings.ToLower(filePath)
 	_, fileName := filepath.Split(lowercaseFilePath)
 
